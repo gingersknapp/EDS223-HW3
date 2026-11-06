@@ -132,7 +132,7 @@ suitable_farming_locations <- function(species, temp_min, temp_max, depth_min, d
     tm_options(component.autoscale= FALSE) +
     tm_shape(eez_suitable_areas) +
         tm_polygons(fill = 'area',
-                    fill.legend = tm_legend(title = "Total Suitable Area (square km)"),
+                    fill.legend = tm_legend(title = "Total Suitable Area\n(square km)"),
                     fill.scale = tm_scale_continuous(values = 'seaborn.icefire'),
                     fill_alpha = 0.5) +
         tm_text(text = 'rgn',
@@ -140,16 +140,15 @@ suitable_farming_locations <- function(species, temp_min, temp_max, depth_min, d
                 col = 'black') +
     tm_shape(suitable_locations) +
         tm_polygons(
-            fill = 'red',
-            fill.legend = tm_legend(title = "Suitable Farming Locations")) +
+            fill = 'red') +
     tm_compass(position = tm_pos_in("right", "top")) +
     tm_scalebar(position = tm_pos_out("center", "bottom")) +
     tm_legend(postion = tm_pos_out('right', 'center')) +
     tm_add_legend(fill = 'red',
-                  title = "Suitable Farming Locations",
+                  title = "Suitable Locations",
                   type = 'polygons',
                   position = tm_pos_out('right', 'center')) +
-    tm_title(paste("Total area per West Coast EEZ suitable for", species, "farming"),
+    tm_title(paste("Total area per West Coast EEZ suitable\nfor", species, "farming"),
             size = 1,
             position = tm_pos_out("center", "top"))
     }
@@ -160,14 +159,14 @@ suitable_farming_locations <- function(species, temp_min, temp_max, depth_min, d
 suitable_farming_locations('oyster', temp_min = 11, temp_max = 30, depth_min = 0, depth_max = -70)
 ```
 
-Oysters have an optimal temperature range of 11 to 30 degrees Celsius, and an optimal depth range of up to 70 meters below sea level.  Considering both of these factors, Central California has the greatest total area suitable for oyster farming, followed by Southern California and Washington.  Northern California is the least suited.  The majority of the suitable area in Central California lies in the San Francsisco and Monterey Bay areas, though appropriate locations can be found throughout much of the coastline.
+Oysters have an optimal temperature range of 11 to 30 degrees Celsius, and an optimal depth range of up to 70 meters.  Considering both of these factors, Central California has the greatest total area suitable for oyster farming, followed by Southern California and Washington.  Northern California is the least suited.  The majority of the suitable area in Central California lies in the San Francsisco and Monterey Bay areas, though appropriate locations can be found throughout much of the coastline.
 
 ```{r, message=FALSE, warning=FALSE}
 # Identify suitable farming locations for red abalone
 suitable_farming_locations('red abalone', temp_min = 8, temp_max = 18, depth_min = 0, depth_max = -24)
 ```
 
-Red abalone have an optimal temperature range of 8 to 18 degrees Celsius, and an optimal depth range of up to 24 meters below sea level.  Considering both of these factors, Washington is the best suited for abalone farming, followed by Central California.  Northern California is the least suitable.  The majority of Washington's coastline is suitable for red abalone, particularly the coastline of the bays off of the Rosario Strait and Strait of Georgia.  In Central California, suitable locations are restricted primarily to the San Francisco Bay, though narrow areas are suitable along much of the west coast. 
+Red abalone have an optimal temperature range of 8 to 18 degrees Celsius, and an optimal depth range of up to 24 meters.  Considering both of these factors, Washington is the best suited for abalone farming, followed by Central California.  Northern California is the least suitable.  The majority of Washington's coastline is suitable for red abalone, particularly the coastline of the bays off of the Rosario Strait and Strait of Georgia.  In Central California, suitable locations are restricted primarily to the San Francisco Bay, though narrow areas are suitable along much of the west coast. 
 
 ## References
 - Coral Reef Watch. (2018, August 1). Daily Global 5km Satellite Sea Surface Temperature Anomaly (Version 3.1). NOAA Coral Reef Watch Daily 5km satellite coral bleaching heat stress SST anomaly product (version 3.1). https://coralreefwatch.noaa.gov/product/5km/index_5km_ssta.php 
