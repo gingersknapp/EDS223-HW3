@@ -1,0 +1,179 @@
+---
+title: "Prioritizing potential marine aquaculture"
+author: Olivia Knapp
+---
+
+This analysis examines which Exclusive Economic Zones (EEZ) on the United States' West Coast are best suited for marine aquaculture of oysters and other species.  Location suitability is determined based on the species' optimal range of sea surface temperature (SST) and depth.
+
+Sea surface temperatures used in this analysis are obtained from NOAA's 5km Daily Global Satellite Sea Surface Temperature Anomaly v3.1.  Measurements are averaged over four years between 2008 and 2012.  Bathymetry measurements are taken from the General Bathymetric Chart of the Oceans (GEBCO).  Boundaries of Exclusive Economic Zones are designated based on Marineregions.org.
+
+## Load and Process Data
+
+```{r, message = FALSE}
+# Load Packages
+library(terra) # raster handling
+library(tidyverse)
+library(tmap)
+library(spData) # spatial data
+library(spDataLarge) # spatial data
+library(stars)
+library(stringr)
+```
+
+
+```{r, message = FALSE}
+# Load data
+depth <- rast("/home/oknapp/eds223/EDS223-HW3/data/depth.tif")
+sst_2008 <- rast("/home/oknapp/eds223/EDS223-HW3/data/average_annual_sst_2008.tif")
+sst_2009 <- rast("/home/oknapp/eds223/EDS223-HW3/data/average_annual_sst_2009.tif")
+sst_2010 <- rast("/home/oknapp/eds223/EDS223-HW3/data/average_annual_sst_2010.tif")
+sst_2011 <- rast("/home/oknapp/eds223/EDS223-HW3/data/average_annual_sst_2011.tif")
+sst_2012 <- rast("/home/oknapp/eds223/EDS223-HW3/data/average_annual_sst_2012.tif")
+wc_regions <- st_read("/home/oknapp/eds223/EDS223-HW3/data/wc_regions_clean.shp")
+```
+
+
+```{r}
+#Check that SST file crs match
+if (same.crs(sst_2008, sst_2009)&
+    same.crs(sst_2008, sst_2010)&
+    same.crs(sst_2008, sst_2011)&
+    same.crs(sst_2008, sst_2012)){
+    return(invisible(NULL))
+} else{
+    warning("CRS do not match. Transform before joining")}
+```
+
+```{r}
+# Combine sst files, take 4-year mean, and convert to celsius
+sst_mean_c <- c(sst_2008, sst_2009, sst_2010, sst_2011, sst_2012) |> 
+    mean(na.rm = TRUE) - 273.15
+
+#Adjust the crs of the depth raster to match the crs of the sst raster
+if (crs(sst_mean_c) == crs(depth)){
+    return(invisible(NULL))
+}else{
+    crs(depth) <- crs (sst_mean_c)}
+
+#Resample the depth data to match the resolution of the SST and crop to match the extent of SST
+depth_cropped <- resample(depth, sst_mean_c, method = "bilinear") |> 
+                    crop(sst_mean_c)
+
+#Confirm crs, resolutions and extents match
+if(same.crs(sst_mean_c, depth_cropped)){
+    return(invisible(NULL))
+} else {
+    warning("depth and sst raster crs do not match")}
+if(ext(depth_cropped) == ext(sst_mean_c)){
+    return(invisible(NULL))
+} else {
+    warning("depth and sst raster extents do not match")}
+
+if(mean(res(depth_cropped) == res(sst_mean_c)) == 1) {
+    return(invisible(NULL)) 
+} else {
+    warning("depth and sst raster resolutions do not match")}
+```
+
+
+## Find Suitable Locations
+
+The following function can be used to identify suitable locations for marine farming of a given species and their temperature and depth range.  It relies on the previously-processed data to provide a map of exclusive economic zones of the west coast of the United States, shaded by total area suitable for farming the given species.  Precise locations within zones with appropriate habitats for farming are indicated in red.
+
+Two examples are given below; oysters and red abalone.
+```{r}
+# Create a function to map suitable locations for farming given a species, 
+suitable_farming_locations <- function(species, temp_min, temp_max, depth_min, depth_max) {
+    if (depth_max > 0) {
+        warning ("Depths expected as negative values or 0")}
+
+    # Categorize suitable temperatures
+    sst_rcl <- matrix(c(
+       -Inf, temp_min, 0,
+        temp_min, temp_max, 1,
+        temp_max, Inf, 0
+    ), ncol = 3, byrow = TRUE)
+    sst_zones <- classify(sst_mean_c, rcl = sst_rcl)
+    # Categorize suitable depths
+    depth_rcl <- matrix(c(
+        -Inf, depth_max, 0,
+        depth_max, depth_min, 1,
+        depth_min, Inf, 0
+    ), ncol =3, byrow = TRUE)
+    depth_zones <- classify(depth_cropped, rcl = depth_rcl)
+
+    #Create a mask to identify suitable farming areas
+    suitable <- c(sst_zones, depth_zones) |> lapp(fun = function(sst, depth) sst*depth)
+
+    suitable_zones_mask <- cellSize(suitable, unit = 'km', mask = TRUE) |> 
+        mask(suitable, maskvalues = 0)
+
+    # Make the crs of EEZ locations match crs of suitable locations
+    if (crs(wc_regions) != crs(suitable)){
+         sf::st_crs(wc_regions) <- terra::crs(suitable)
+    }
+
+    # Convert EEZ location data into a raster
+    eez_suitable <- rasterize(wc_regions, suitable, field = 'rgn_id')
+
+    # Calculate total area covered by suitable locations
+    eez_suitable_areas <- zonal(suitable_zones_mask, eez_suitable, fun = "sum", na.rm = TRUE) |> 
+        left_join(x = wc_regions, by = 'rgn_id') |> 
+        mutate(rgn = str_replace_all(rgn, " ", "\n") #Format EEZ names for mapping labels
+    )
+
+    # Create polygons to map suitable farming locations
+    suitable_locations <- as.polygons(suitable_zones_mask, dissolve = TRUE)
+
+    # Map EEZs by total suitable area
+    tmap_options(show.messages = FALSE,
+                 show.warnings = FALSE)
+    tm_basemap("Esri.OceanBasemap") +
+    tm_options(component.autoscale= FALSE) +
+    tm_shape(eez_suitable_areas) +
+        tm_polygons(fill = 'area',
+                    fill.legend = tm_legend(title = "Total Suitable Area (square km)"),
+                    fill.scale = tm_scale_continuous(values = 'seaborn.icefire'),
+                    fill_alpha = 0.5) +
+        tm_text(text = 'rgn',
+                size = 0.5,
+                col = 'black') +
+    tm_shape(suitable_locations) +
+        tm_polygons(
+            fill = 'red',
+            fill.legend = tm_legend(title = "Suitable Farming Locations")) +
+    tm_compass(position = tm_pos_in("right", "top")) +
+    tm_scalebar(position = tm_pos_out("center", "bottom")) +
+    tm_legend(postion = tm_pos_out('right', 'center')) +
+    tm_add_legend(fill = 'red',
+                  title = "Suitable Farming Locations",
+                  type = 'polygons',
+                  position = tm_pos_out('right', 'center')) +
+    tm_title(paste("Total area per West Coast EEZ suitable for", species, "farming"),
+            size = 1,
+            position = tm_pos_out("center", "top"))
+    }
+```
+
+```{r, message=FALSE, warning = FALSE}
+# Identify suitable farming locations for oysters
+suitable_farming_locations('oyster', temp_min = 11, temp_max = 30, depth_min = 0, depth_max = -70)
+```
+
+Oysters have an optimal temperature range of 11 to 30 degrees Celsius, and an optimal depth range of up to 70 meters below sea level.  Considering both of these factors, Central California has the greatest total area suitable for oyster farming, followed by Southern California and Washington.  Northern California is the least suited.  The majority of the suitable area in Central California lies in the San Francsisco and Monterey Bay areas, though appropriate locations can be found throughout much of the coastline.
+
+```{r, message=FALSE, warning=FALSE}
+# Identify suitable farming locations for red abalone
+suitable_farming_locations('red abalone', temp_min = 8, temp_max = 18, depth_min = 0, depth_max = -24)
+```
+
+Red abalone have an optimal temperature range of 8 to 18 degrees Celsius, and an optimal depth range of up to 24 meters below sea level.  Considering both of these factors, Washington is the best suited for abalone farming, followed by Central California.  Northern California is the least suitable.  The majority of Washington's coastline is suitable for red abalone, particularly the coastline of the bays off of the Rosario Strait and Strait of Georgia.  In Central California, suitable locations are restricted primarily to the San Francisco Bay, though narrow areas are suitable along much of the west coast. 
+
+## References
+- Coral Reef Watch. (2018, August 1). Daily Global 5km Satellite Sea Surface Temperature Anomaly (Version 3.1). NOAA Coral Reef Watch Daily 5km satellite coral bleaching heat stress SST anomaly product (version 3.1). https://coralreefwatch.noaa.gov/product/5km/index_5km_ssta.php 
+
+- Flanders Marine Institute. (n.d.). EEZ boundaries. Marine regions. https://www.marineregions.org/eez.php 
+
+- GEBCO Compilation Group (2022) GEBCO_2022 Grid (doi:10.5285/e0f0bb80-ab44-2739-e053-6c86abc0289c).
+
+- Palomares, M.L.D. and D. Pauly. Editors. 2026. SeaLifeBase. World Wide Web electronic publication. www.sealifebase.org, version (06/2026).
