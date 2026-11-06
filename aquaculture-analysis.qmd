@@ -1,6 +1,7 @@
 ---
 title: "Prioritizing potential marine aquaculture"
 author: Olivia Knapp
+date: November 6, 2026
 ---
 
 This analysis examines which Exclusive Economic Zones (EEZ) on the United States' West Coast are best suited for marine aquaculture of oysters and other species.  Location suitability is determined based on the species' optimal range of sea surface temperature (SST) and depth.
